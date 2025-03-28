@@ -1,0 +1,21 @@
+{
+  "fail2ban_jail": "sshd",
+  "anthropic_api_key": "YOUR_ANTHROPIC_API_KEY",
+  "anthropic_model": "claude-3-haiku-20240307",
+  "mailgun_api_key": "YOUR_MAILGUN_API_KEY",
+  "mailgun_domain": "yourdomain.com",
+  "mailgun_from_email": "security@yourdomain.com",
+  "mailgun_reply_to": "security-noreply@yourdomain.com",
+  "report_frequency_hours": 24,
+  "max_reports_per_day": 50,
+  "whois_timeout": 10,
+  "report_template": "...",
+  "exclude_ips": [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16"
+  ],
+  "log_level": "INFO",
+  "database_file": "reported_ips.json",
+  "use_env_for_keys": true
+}
