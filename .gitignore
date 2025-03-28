@@ -1,0 +1,5 @@
+snitch_venv/
+.env
+reported_ips.json 
+ssh_abuse_reporter.log
+config.json
