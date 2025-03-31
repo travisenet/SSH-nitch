@@ -155,59 +155,47 @@ class Fail2BanHandler:
             return []
     
     def get_historical_banned_ips(self, days_back: int = 7) -> Dict[str, List[datetime]]:
-        """
-        Get historical banned IPs from Fail2Ban logs.
-        Returns a dictionary mapping IP addresses to lists of ban timestamps.
-        """
+        """Get historical banned IPs from Fail2Ban database."""
         banned_ips = {}
-        
+        # Add at the beginning of get_historical_banned_ips()
+
         try:
-            # Calculate the date from which to start searching logs
-            start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
-            
-            # Command to search the logs for ban actions
+            # Calculate the date from which to start searching
+            start_time = int((datetime.now() - timedelta(days=days_back)).timestamp())
+            logger.debug(f"Searching for banned IPs in jail {self.jail} since {start_time}")
+            logger.debug(f"Using log path: {self.log_path}")       
+            # Command to query the Fail2Ban database
             if os.geteuid() != 0:
-                grep_cmd = ["sudo", "grep", f"Ban {self.jail}", self.log_path]
+                cmd = ["sudo", "fail2ban-client", "get", self.jail, "banned"]
             else:
-                grep_cmd = ["grep", f"Ban {self.jail}", self.log_path]
+                cmd = ["fail2ban-client", "get", self.jail, "banned"]
                 
             result = subprocess.run(
-                grep_cmd,
+                cmd,
                 capture_output=True,
                 text=True
             )
             
-            if result.returncode not in [0, 1]:  # grep returns 1 if no matches found
-                logger.error(f"Error searching Fail2Ban logs: {result.stderr}")
+            if result.returncode != 0:
+                logger.error(f"Error querying Fail2Ban database: {result.stderr}")
                 return banned_ips
+            
+            # Process the output (format varies by Fail2Ban version)
+            ip_list = []
+            for line in result.stdout.strip().split('\n'):
+                if line and not line.startswith('-') and not line.lower() == 'none':
+                    ip_list.extend(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', line))
+            
+            # For each IP, get its ban history
+            for ip in ip_list:
+                banned_ips[ip] = [datetime.now()]  # Default to current time
                 
-            # Process each log line
-            for line in result.stdout.splitlines():
-                # Sample log line: "2025-03-28 12:34:56,789 fail2ban.actions[12345]: INFO [sshd] Ban 192.168.1.1"
-                match = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*Ban (\d+\.\d+\.\d+\.\d+)', line)
-                if match:
-                    timestamp_str = match.group(1)
-                    ip = match.group(2)
-                    
-                    try:
-                        # Parse the timestamp
-                        timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
-                        
-                        # Only include if it's after our start date
-                        if timestamp.strftime('%Y-%m-%d') >= start_date:
-                            if ip not in banned_ips:
-                                banned_ips[ip] = []
-                            banned_ips[ip].append(timestamp)
-                    except ValueError:
-                        logger.warning(f"Failed to parse timestamp: {timestamp_str}")
-            
-            logger.info(f"Found {len(banned_ips)} historical banned IPs from the last {days_back} days")
+            logger.info(f"Found {len(banned_ips)} historical banned IPs from Fail2Ban database")
             return banned_ips
-            
+        
         except Exception as e:
-            logger.error(f"Error retrieving historical banned IPs: {str(e)}")
+            logger.error(f"Error retrieving historical banned IPs from database: {str(e)}")
             return banned_ips
-
 
 class WHOISParser:
     """Handles WHOIS lookups and parses results to find abuse contacts."""
